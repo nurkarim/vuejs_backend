@@ -3,80 +3,69 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Image;
-use File;
-class ProductController extends Controller
+use Illuminate\Support\Facades\DB;
+use Validator;
+use App\Http\Controllers\API\BaseController as BaseController;
+
+class ProductController extends BaseController
 {
-    public $imagesPath = '';
     public function index()
     {
         $products = Product::all();
         return $this->sendResponse(ProductResource::collection($products), 'Products retrieved successfully.');
     }
 
-    public function createDirectory()
+    public function imageUpload($file, $customName, $path)
     {
-        $paths = [
-            'image_path' => public_path('images/'),
-        ];
-        foreach ($paths as $key => $path) {
-            if(!File::isDirectory($path)){
-                File::makeDirectory($path, 0777, true, true);
-            }
+        $imageName = $customName . "." . $file->getClientOriginalExtension();
+        if ($file->isValid()) {
+            $file->move($path, $imageName);
+            return $imageName;
         }
-        $this->imagesPath = $paths['image_path'];
+        return false;
     }
 
     public function store(Request $request)
     {
         $input = $request->all();
+
         $validator = Validator::make($input, [
-            'title' => 'required|string',
-            'price' => 'required|regex:/^\d+(\.\d{1,2})?$/',
-            'description' => 'required',
+            'title' => 'required',
+            'price' => 'required',
+            'description' => 'required'
         ]);
 
         if ($validator->fails()) {
             return $this->sendError('Validation Error.', $validator->errors());
         }
 
-        $product = Product::create($input);
-
-        if($request->hasFile('image')) {
-
-            $validator = Validator::make($input, [
-                'image' => 'mimes:jpeg,jpg,png,gif|required|max:10000',
+        try {
+            DB::beginTransaction();
+            $product = Product::create([
+                'title'=>$request->title,
+                'price'=>$request->price,
+                'description'=>$request->description,
             ]);
-
-            if ($validator->fails()) {
-                return $this->sendError('Validation Error.', $validator->errors());
+            if ($request->has('image')) {
+//                $path = public_path('/images');
+//                $file = $request->image[0];
+//                $extension = $file->getClientOriginalExtension();
+//                $picture = 'pdt_' . $product->id;
+//                $otherImage = $this->imageUpload($file, $picture, $path);
+//                Product::query()->where('id', $product->id)->update([
+//                    'image' => $otherImage,
+//                ]);
             }
-                $this->createDirecrotory();
-                $file=$request->image;
-                $image = Image::make($file);
-                $imageName = $product->id . '-' . $file->getClientOriginalName();
-                $image->resize(300, 300);  // resize and save thumbnail
-                $image->save($this->imagesPath . $imageName);
-                //update product table
-                $upload = Product::find($product->id);
-                $upload->image = $imageName;
-                $upload->save();
+            DB::commit();
+            return $this->sendResponse(new ProductResource($product), 'Product created successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error.', $e->getMessage());
         }
 
-        return $this->sendResponse(new ProductResource($product), 'Product created successfully.');
-    }
-
-    public function show($id)
-    {
-        $product = Product::find($id);
-
-        if (is_null($product)) {
-            return $this->sendError('Product not found.');
-        }
-
-        return $this->sendResponse(new ProductResource($product), 'Product retrieved successfully.');
     }
 
     public function update(Request $request, Product $product)
@@ -84,10 +73,9 @@ class ProductController extends Controller
         $input = $request->all();
 
         $validator = Validator::make($input, [
-            'title' => 'required|string',
-            'price' => 'required|regex:/^\d+(\.\d{1,2})?$/',
+            'title' => 'required',
             'description' => 'required',
-            'image' => 'mimes:jpeg,jpg,png,gif|max:10000',
+            'price' => 'required',
         ]);
 
         if ($validator->fails()) {
@@ -95,17 +83,17 @@ class ProductController extends Controller
         }
 
         $product->title = $input['title'];
-        $product->price = $input['price'];
         $product->description = $input['description'];
+        $product->price = $input['price'];
         $product->save();
 
         return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
     }
 
-    public function destroy(Product $product)
+    public function destroy($id)
     {
+        $product = Product::find($id);
         $product->delete();
-
         return $this->sendResponse([], 'Product deleted successfully.');
     }
 }

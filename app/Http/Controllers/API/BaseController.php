@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Controller as Controller;
 use Illuminate\Http\Request;
 
 class BaseController extends Controller
 {
+
     public function sendResponse($result, $message)
     {
         $response = [
@@ -25,9 +26,12 @@ class BaseController extends Controller
             'success' => false,
             'message' => $error,
         ];
+
         if(!empty($errorMessages)){
             $response['data'] = $errorMessages;
         }
+
+
         return response()->json($response, $code);
     }
 }

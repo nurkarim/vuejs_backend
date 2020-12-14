@@ -1,12 +1,15 @@
 <?php
-
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\API\HomeController;
+use App\Http\Controllers\API\RegisterController;
 
-Route::post('register', [\App\Http\Controllers\API\LoginController::class, 'register']);
-Route::post('login', [\App\Http\Controllers\API\LoginController::class, 'login']);
-Route::get('homeApi', [\App\Http\Controllers\API\HomeController::class,'index']);
+Route::group(['middleware' => ['cors', 'json.response']], function () {
+Route::post('register', [RegisterController::class,'register']);
+Route::post('login', [RegisterController::class,'login']);
+});
 
-Route::middleware('auth:api')->group( function () {
+Route::group(['middleware' => ['cors', 'json.response','auth:api']], function () {
+    Route::post('logout', [RegisterController::class,'logout']);
+    Route::get('homeApi', [HomeController::class,'index']);
     Route::resource('products', \App\Http\Controllers\API\ProductController::class);
 });
