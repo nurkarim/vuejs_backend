@@ -45,20 +45,19 @@ class ProductController extends BaseController
         try {
             DB::beginTransaction();
             $product = Product::create([
-                'title'=>$request->title,
-                'price'=>$request->price,
-                'description'=>$request->description,
+                'title' => $request->title,
+                'price' => $request->price,
+                'description' => $request->description,
             ]);
-            if ($request->has('image')) {
-//                $path = public_path('/images');
-//                $file = $request->image[0];
-//                $extension = $file->getClientOriginalExtension();
-//                $picture = 'pdt_' . $product->id;
-//                $otherImage = $this->imageUpload($file, $picture, $path);
-//                Product::query()->where('id', $product->id)->update([
-//                    'image' => $otherImage,
-//                ]);
+            if ($request->get('image')) {
+                $image = $request->get('image');
+                $name = $product->id . '.' . explode('/', explode(':', substr($image, 0, strpos($image, ';')))[1])[1];
+                \Image::make($request->get('image'))->save(public_path('images/') . $name);
+                Product::query()->where('id', $product->id)->update([
+                    'image' => $name,
+                ]);
             }
+
             DB::commit();
             return $this->sendResponse(new ProductResource($product), 'Product created successfully.');
         } catch (\Exception $e) {
@@ -71,23 +70,35 @@ class ProductController extends BaseController
     public function update(Request $request, Product $product)
     {
         $input = $request->all();
-
         $validator = Validator::make($input, [
             'title' => 'required',
             'description' => 'required',
             'price' => 'required',
         ]);
+        try {
+            DB::beginTransaction();
+            if ($validator->fails()) {
+                return $this->sendError('Validation Error.', $validator->errors());
+            }
+            if ($request->get('image')) {
+                $image = $request->get('image');
+                $name = $product->id . '.' . explode('/', explode(':', substr($image, 0, strpos($image, ';')))[1])[1];
+                \Image::make($request->get('image'))->save(public_path('images/') . $name);
+            } else {
+                $name = $product->image;
+            }
+            $product->title = $input['title'];
+            $product->description = $input['description'];
+            $product->price = $input['price'];
+            $product->image = $name;
+            $product->save();
 
-        if ($validator->fails()) {
-            return $this->sendError('Validation Error.', $validator->errors());
+            DB::commit();
+            return $this->sendResponse(new ProductResource($product), 'Product update successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error.', $e->getMessage());
         }
-
-        $product->title = $input['title'];
-        $product->description = $input['description'];
-        $product->price = $input['price'];
-        $product->save();
-
-        return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
     }
 
     public function destroy($id)
